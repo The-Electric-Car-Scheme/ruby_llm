@@ -11,6 +11,8 @@ module RubyLLM
       include Anthropic::Streaming
       include Anthropic::Tools
 
+      STRUCTURED_OUTPUTS_BETA = 'structured-outputs-2025-11-13'
+
       def api_base
         'https://api.anthropic.com'
       end
@@ -22,6 +24,11 @@ module RubyLLM
         }
       end
 
+      def complete(messages, tools:, temperature:, model:, params: {}, headers: {}, schema: nil, thinking: nil, &block)
+        headers = add_structured_output_beta_header(headers) if schema
+        super
+      end
+
       class << self
         def capabilities
           Anthropic::Capabilities
@@ -30,6 +37,14 @@ module RubyLLM
         def configuration_requirements
           %i[anthropic_api_key]
         end
+      end
+
+      private
+
+      def add_structured_output_beta_header(headers)
+        existing_beta = headers['anthropic-beta']
+        new_beta = existing_beta ? "#{existing_beta},#{STRUCTURED_OUTPUTS_BETA}" : STRUCTURED_OUTPUTS_BETA
+        headers.merge('anthropic-beta' => new_beta)
       end
     end
   end

@@ -295,7 +295,7 @@ module RubyLLM
 
       def models_dev_model_to_info(model_data, provider_slug, provider_key)
         modalities = normalize_models_dev_modalities(model_data[:modalities])
-        capabilities = models_dev_capabilities(model_data, modalities)
+        capabilities = models_dev_capabilities(model_data, modalities, provider_slug)
 
         data = {
           id: model_data[:id],
@@ -316,13 +316,35 @@ module RubyLLM
         data
       end
 
-      def models_dev_capabilities(model_data, modalities)
+      def models_dev_capabilities(model_data, modalities, provider_slug = nil)
         capabilities = []
         capabilities << 'function_calling' if model_data[:tool_call]
         capabilities << 'structured_output' if model_data[:structured_output]
         capabilities << 'reasoning' if model_data[:reasoning]
         capabilities << 'vision' if modalities[:input].intersect?(%w[image video pdf])
+
+        # Apply provider-specific capabilities that models.dev may not have yet
+        if provider_slug
+          provider_capabilities = provider_specific_capabilities(model_data[:id], provider_slug)
+          capabilities.concat(provider_capabilities)
+        end
+
         capabilities.uniq
+      end
+
+      def provider_specific_capabilities(model_id, provider_slug)
+        provider_class = Provider.providers[provider_slug.to_sym]
+        return [] unless provider_class&.respond_to?(:capabilities)
+
+        caps_module = provider_class.capabilities
+        capabilities = []
+
+        # Check for structured_output support
+        if caps_module.respond_to?(:supports_structured_output?) && caps_module.supports_structured_output?(model_id)
+          capabilities << 'structured_output'
+        end
+
+        capabilities
       end
 
       def models_dev_pricing(cost)
